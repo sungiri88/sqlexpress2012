@@ -1,0 +1,4 @@
+---
+# vars file for sql_server
+sqlsvcaccount: "NT Service\\MSSQL$SQLEXPRESS"
+sapwd: "secret123$"

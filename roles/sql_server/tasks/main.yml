@@ -1,0 +1,108 @@
+---
+# tasks file for sql_server
+
+# SQL Express Installation
+
+ - debug: var=hostvars[inventory_hostname]
+
+ - name: create a directory for installer download
+   win_file: 
+      path: c:\sql
+      state: directory
+ 
+ - name: create a directory for installer extraction
+   win_file: 
+      path: c:\sql\installer
+      state: directory
+
+ - name: create the configuration file
+   win_template: 
+     src: sql_conf.ini.j2
+     dest: c:\sql\sql_conf.ini
+
+ - name: a pre requisite of sql net-framework-35
+   win_feature:
+      name: NET-Framework-Core
+      state: present
+
+ - name: check downloaded file exists
+   win_stat:
+      path: c:\sql\sql_installer.exe
+   register: installer_file
+
+ - name: get the installer
+   win_get_url:
+      url: 'https://download.microsoft.com/download/8/D/D/8DD7BDBA-CEF7-4D8E-8C16-D9F69527F909/ENU/x64/SQLEXPR_x64_ENU.exe'
+      dest: 'c:\sql\sql_installer.exe'
+   when: not installer_file.stat.exists
+ 
+ - name: extract the installer
+   win_command: c:\sql\sql_installer.exe /q /x:c:\sql\installer
+   args:
+    chdir: c:\sql
+    creates: c:\sql\installer\setup.exe
+ 
+ - name: Install the database
+   win_command: c:\sql\installer\setup.exe /configurationfile=c:\sql\sql_conf.ini /IAcceptSQLServerLicenseTerms
+   args:
+    chdir: c:\sql
+    
+ - name: Add or update registry for ip port
+   win_regedit:
+     path: 'HKLM:\Software\Microsoft\Microsoft SQL Server\MSSQL11.SQLEXPRESS\MSSQLServer\SuperSocketNetLib\Tcp\IPAll'
+     name: TcpPort
+     data: 1433
+   register: win_reg
+
+ - name: Restart a service
+   win_service:
+     name: 'MSSQL$SQLEXPRESS'
+     force_dependent_services: yes
+     state: restarted
+   when: win_reg.changed
+
+# SQL Server Management Studio
+
+ - name: create the configuration file
+   win_template: 
+     src: sql_ssms_conf.ini.j2
+     dest: c:\sql\sql_ssms_conf.ini
+   tags:
+     - ssms
+
+ - name: check downloaded file exists
+   win_stat:
+      path: c:\sql\sql_ssms_installer.exe
+   register: ssms_installer_file     
+
+ - name: get the installer
+   win_get_url:
+        url: 'http://download.microsoft.com/download/5/2/9/529FEF7B-2EFB-439E-A2D1-A1533227CD69/SQLManagementStudio_x64_ENU.exe' 
+        dest: 'c:\sql\sql_ssms_installer.exe'
+   when: not ssms_installer_file.stat.exists
+
+ - name: extract the installer
+   win_command: c:\sql\sql_ssms_installer.exe /q /x:c:\sql\ssms_installer
+
+ - name: Install the database
+   win_command: c:\sql\ssms_installer\setup.exe /configurationfile=c:\sql\sql_ssms_conf.ini /IAcceptSQLServerLicenseTerms=True   
+   tags:
+     - ssms
+
+ - name: copy powershell script
+   win_copy:
+     src: "enableProtocols.ps1"
+     dest: 'c:\sql\enableProtocols.ps1'
+   tags:
+     - protocol
+
+ - name: Run powershell script to enable protocols
+   win_shell: c:\sql\enableProtocols.ps1
+   tags:
+     - protocol
+
+ - name: Restart SQL service
+   win_service:
+     name: 'MSSQL$SQLEXPRESS'
+     force_dependent_services: yes
+     state: restarted
