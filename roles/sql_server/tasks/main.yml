@@ -7,4 +7,4 @@
 
 - name: Run sql installation
   include: sql.yml
-  when: sevice_info.exists == false
+  when: service_info.exists == false
